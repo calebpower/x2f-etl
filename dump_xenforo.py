@@ -41,6 +41,44 @@ def serialize_arr(data):
     for x in data.decode('utf-8').split(',')
   ]
 
+def fetch_recipient_conversations(user_id, cursor):
+  query = "SELECT conversation_id, recipient_state, last_read_date FROM xf_conversation_recipient WHERE user_id = %s"
+  cursor.execute(query, (user_id,))
+  res = cursor.fetchall()
+
+  conversations = []
+  for convo in res:
+    convo_obj = {
+      "conversation_id": convo['conversation_id'],
+      "recipient_state": convo['recipient_state'],
+      "last_read_date": convo['last_read_date']
+    }
+    conversations.append(convo_obj)
+
+  return conversations
+
+def fetch_conversation_messages(convo_id, cursor):
+  query = '''
+  SELECT message_id, message_date, user_id, message, ip_id
+  FROM xf_conversation_message
+  WHERE conversation_id = %s ORDER BY message_date ASC
+  '''
+  cursor.execute(query, (convo_id,))
+  res = cursor.fetchall()
+
+  messages = []
+  for message in res:
+    message_obj = {
+      "message_id": message['message_id'],
+      "message_date": message['message_date'],
+      "user_id": message['user_id'],
+      "message": message['message'],
+      "ip_id": message['ip_id']
+    }
+    messages.append(message)
+
+  return messages
+
 def fetch_user_alert_optouts(user_id, cursor):
   query = "SELECT alert FROM xf_user_alert_optout WHERE user_id = %s"
   cursor.execute(query, (user_id,))
@@ -150,12 +188,12 @@ def fetch_user_profile(user_id, cursor):
   return result
 
 
-def dump(table, out_dir, row_ops):
+def dump(query, out_dir, row_ops):
   try:
     os.makedirs(out_dir, exist_ok=True)
     con = pymysql.connect(**DB_CONFIG)
     cursor = con.cursor(pymysql.cursors.DictCursor)
-    cursor.execute(f"SELECT * FROM {table}")
+    cursor.execute(query)
     rows = cursor.fetchall()
 
     for row in rows:
@@ -165,7 +203,7 @@ def dump(table, out_dir, row_ops):
       with open(out_file, 'w', encoding='utf-8') as file:
         json.dump(row, file, indent=2, ensure_ascii=False)
 
-      print(f"{table} {row_id} written to {out_file}")
+      print(f"wrote {out_file}")
 
   except Exception as e:
     print(f"error: {e}")
@@ -175,6 +213,16 @@ def dump(table, out_dir, row_ops):
       cursor.close()
     if 'con' in locals():
       con.close()
+
+def mutate_attachment(row, cursor):
+  attachment_id = row['attachment_id']
+  row['content_type'] = row['content_type'].decode('utf-8')
+  return attachment_id
+
+def mutate_conversation(row, cursor):
+  convo_id = row['conversation_id']
+  row['messages'] = fetch_conversation_messages(convo_id, cursor)
+  return convo_id
 
 def mutate_user(row, cursor):
   user_id = row['user_id']
@@ -189,6 +237,7 @@ def mutate_user(row, cursor):
   row['options'] = fetch_user_option(user_id, cursor)
   row['privacy'] = fetch_user_privacy(user_id, cursor)
   row['profile'] = fetch_user_profile(user_id, cursor)
+  row['conversations'] = fetch_recipient_conversations(user_id, cursor)
   return user_id
 
 def mutate_user_field(row, cursor):
@@ -203,6 +252,33 @@ def mutate_user_group(row, cursor):
   return group_id
 
 if __name__ == "__main__":
-  dump('xf_user', 'data/raw/users', mutate_user)
-  dump('xf_user_field', 'data/raw/user_fields', mutate_user_field)
-  dump('xf_user_group', 'data/raw/user_groups', mutate_user_group)
+  dump('''
+  SELECT a.attachment_id AS attachment_id,
+    a.data_id AS data_id,
+    a.content_type AS content_type,
+    a.content_id AS content_id,
+    a.attach_date AS attach_date,
+    a.unassociated AS unassociated,
+    a.view_count AS view_count,
+    d.user_id AS user_id,
+    d.filename AS filename,
+    d.file_size AS file_size,
+    d.file_hash AS file_hash,
+    d.file_path AS file_path,
+    d.width AS width,
+    d.height AS height,
+    d.thumbnail_width AS thumbnail_width,
+    d.thumbnail_height AS thumbnail_height,
+    d.attach_count
+  FROM xf_attachment a
+  INNER JOIN xf_attachment_data d
+    ON a.data_id = d.data_id
+  ''', 'data/raw/attachments', mutate_attachment)
+  dump('''
+  SELECT conversation_id, title, user_id, start_date, open_invite, conversation_open
+  FROM xf_conversation_master
+  ORDER BY start_date ASC
+  ''', 'data/raw/conversations', mutate_conversation)
+  dump('SELECT * FROM xf_user', 'data/raw/users', mutate_user)
+  dump('SELECT * FROM xf_user_field', 'data/raw/user_fields', mutate_user_field)
+  dump('SELECT * FROM xf_user_group', 'data/raw/user_groups', mutate_user_group)
