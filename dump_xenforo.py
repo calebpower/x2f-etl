@@ -281,15 +281,65 @@ def fetch_user_privacy(user_id, cursor):
   result.pop('user_id', None)
   return result
 
+def fetch_profile_comments(post_id, cursor):
+  query = '''
+  SELECT profile_post_comment_id, user_id, comment_date, message, ip_id, message_state
+  FROM xf_profile_post_comment
+  WHERE profile_post_id = %s
+  ORDER BY comment_date ASC
+  '''
+  cursor.execute(query, (post_id,))
+  res = cursor.fetchall()
+
+  comments = []
+  for comment in res:
+    comment_obj = {
+      "comment_id": comment['profile_post_comment_id'],
+      "user_id": comment['user_id'],
+      "comment_date": comment['comment_date'],
+      "message": comment['message'],
+      "ip_id": comment['ip_id'],
+      "message_state": comment['message_state']
+    }
+    comments.append(comment_obj)
+
+  return comments
+
+def fetch_profile_posts(user_id, cursor):
+  query = '''
+  SELECT profile_post_id, user_id, post_date, message, ip_id, message_state
+  FROM xf_profile_post
+  WHERE profile_user_id = %s
+  ORDER BY post_date ASC
+  '''
+  cursor.execute(query, (user_id,))
+  res = cursor.fetchall()
+
+  posts = []
+  for post in res:
+    post_id = post['profile_post_id']
+    post_obj = {
+      "post_id": post_id,
+      "user_id": post['user_id'],
+      "post_date": post['post_date'],
+      "message": post['message'],
+      "ip_id": post['ip_id'],
+      "message_state": post['message_state'],
+      "comments": fetch_profile_comments(post_id, cursor)
+    }
+    posts.append(post_obj)
+
+  return posts
+
 def fetch_user_profile(user_id, cursor):
   query = "SELECT dob_day, dob_month, dob_year, signature, homepage, location, occupation, avatar_crop_x, avatar_crop_y, about FROM xf_user_profile WHERE user_id = %s LIMIT 1"
   cursor.execute(query, (user_id,))
   result = cursor.fetchone()
+  result['posts'] = fetch_profile_posts(user_id, cursor)
 
   if result is None:
     return None
   return result
-
 
 def dump(query, out_dir, row_ops):
   try:
@@ -401,11 +451,11 @@ if __name__ == "__main__":
   #INNER JOIN xf_node n
   #  ON f.node_id = n.node_id
   #''', 'data/raw/forums', mutate_forum)
-  dump('''
-  SELECT thread_id, node_id AS forum_id, title, user_id, post_date, sticky,
-    discussion_state, discussion_open, discussion_type, prefix_id
-  FROM xf_thread
-  ''', 'data/raw/threads', mutate_thread)
-  #dump('SELECT * FROM xf_user', 'data/raw/users', mutate_user)
+  #dump('''
+  #SELECT thread_id, node_id AS forum_id, title, user_id, post_date, sticky,
+  #  discussion_state, discussion_open, discussion_type, prefix_id
+  #FROM xf_thread
+  #''', 'data/raw/threads', mutate_thread)
+  dump('SELECT * FROM xf_user', 'data/raw/users', mutate_user)
   #dump('SELECT * FROM xf_user_field', 'data/raw/user_fields', mutate_user_field)
   #dump('SELECT * FROM xf_user_group', 'data/raw/user_groups', mutate_user_group)
