@@ -1,6 +1,7 @@
 import os
 import json
 import pymysql
+import re
 
 DB_CONFIG = {
   'host': 'localhost',
@@ -78,6 +79,108 @@ def fetch_conversation_messages(convo_id, cursor):
     messages.append(message)
 
   return messages
+
+def fetch_tags(content_id, cursor):
+  query = '''
+  SELECT t.tag AS tag FROM xf_tag_content c
+  INNER JOIN xf_tag t ON c.tag_id = t.tag_id
+  WHERE c.content_id = %s
+  '''
+  cursor.execute(query, (content_id,))
+  res = cursor.fetchall()
+  return [re.sub(r'\s+', '-', tag['tag']) for tag in res]
+
+def fetch_posts(thread_id, cursor):
+  query = '''
+  SELECT post_id, user_id, post_date, message, ip_id, message_state, position,
+    last_edit_date, last_edit_user_id, edit_count
+  FROM xf_post
+  WHERE thread_id = %s
+  ORDER BY post_id ASC
+  '''
+  cursor.execute(query, (thread_id,))
+  res = cursor.fetchall()
+
+  posts = []
+  for post in res:
+    post_obj = {
+      "post_id": post['post_id'],
+      "user_id": post['user_id'],
+      "post_date": post['post_date'],
+      "message": post['message'],
+      "ip_id": post['ip_id'],
+      "message_state": post['message_state'],
+      "position": post['position'],
+      "last_edit_date": post['last_edit_date'],
+      "last_edit_user_id": post['last_edit_user_id'],
+      "edit_count": post['edit_count']
+    }
+    posts.append(post_obj)
+
+  return posts
+
+def fetch_poll_votes(poll_id, poll_response_id, cursor):
+  query = '''
+  SELECT user_id, vote_date
+  FROM xf_poll_vote
+  WHERE poll_response_id = %s AND poll_id = %s
+  '''
+  cursor.execute(query, (poll_response_id, poll_id,))
+  res = cursor.fetchall()
+
+  votes = []
+  for vote in res:
+    vote_obj = {
+      "user_id": vote['user_id'],
+      "vote_date": vote['vote_date']
+    }
+    votes.append(vote_obj)
+
+  return votes
+
+def fetch_poll_responses(poll_id, cursor):
+  query = '''
+  SELECT poll_response_id, response
+  FROM xf_poll_response
+  WHERE poll_id = %s
+  '''
+  cursor.execute(query, (poll_id,))
+  res = cursor.fetchall()
+
+  responses = []
+  for response in res:
+    response_obj = {
+      "response": response['response'],
+      "votes": fetch_poll_votes(poll_id, response['poll_response_id'], cursor)
+    }
+    responses.append(response_obj)
+
+  return responses
+
+def fetch_polls(thread_id, cursor):
+  query = '''
+  SELECT poll_id, question, public_votes, close_date,
+    change_vote, view_results_unvoted, max_votes
+  FROM xf_poll
+  WHERE content_id = %s
+  '''
+  cursor.execute(query, (thread_id,))
+  res = cursor.fetchall()
+
+  polls = []
+  for poll in res:
+    poll_obj = {
+      "question": poll['question'],
+      "public_votes": poll['public_votes'],
+      "close_date": poll['close_date'],
+      "change_vote": poll['change_vote'],
+      "view_results_unvoted": poll['view_results_unvoted'],
+      "max_votes": poll['max_votes'],
+      "responses": fetch_poll_responses(poll['poll_id'], cursor)
+    }
+    polls.append(poll_obj)
+
+  return polls
 
 def fetch_user_alert_optouts(user_id, cursor):
   query = "SELECT alert FROM xf_user_alert_optout WHERE user_id = %s"
@@ -224,6 +327,17 @@ def mutate_conversation(row, cursor):
   row['messages'] = fetch_conversation_messages(convo_id, cursor)
   return convo_id
 
+def mutate_forum(row, cursor):
+  node_id = row['node_id']
+  return node_id
+
+def mutate_thread(row, cursor):
+  thread_id = row['thread_id']
+  row['tags'] = fetch_tags(thread_id, cursor)
+  row['posts'] = fetch_posts(thread_id, cursor)
+  row['polls'] = fetch_polls(thread_id, cursor)
+  return thread_id
+
 def mutate_user(row, cursor):
   user_id = row['user_id']
   row['secondary_group_ids'] = serialize_arr(row['secondary_group_ids'])
@@ -252,33 +366,46 @@ def mutate_user_group(row, cursor):
   return group_id
 
 if __name__ == "__main__":
+  #dump('''
+  #SELECT a.attachment_id AS attachment_id,
+  #  a.data_id AS data_id,
+  #  a.content_type AS content_type,
+  #  a.content_id AS content_id,
+  #  a.attach_date AS attach_date,
+  #  a.unassociated AS unassociated,
+  #  a.view_count AS view_count,
+  #  d.user_id AS user_id,
+  #  d.filename AS filename,
+  #  d.file_size AS file_size,
+  #  d.file_hash AS file_hash,
+  #  d.file_path AS file_path,
+  #  d.width AS width,
+  #  d.height AS height,
+  #  d.thumbnail_width AS thumbnail_width,
+  #  d.thumbnail_height AS thumbnail_height,
+  #  d.attach_count
+  #FROM xf_attachment a
+  #INNER JOIN xf_attachment_data d
+  #  ON a.data_id = d.data_id
+  #''', 'data/raw/attachments', mutate_attachment)
+  #dump('''
+  #SELECT conversation_id, title, user_id, start_date, open_invite, conversation_open
+  #FROM xf_conversation_master
+  #ORDER BY start_date ASC
+  #''', 'data/raw/conversations', mutate_conversation)
+  #dump('''
+  #SELECT f.node_id AS node_id, title, description, node_name, parent_node_id,
+  #  display_order, display_in_list, moderate_replies, allow_posting, default_prefix_id,
+  #  require_prefix, allowed_watch_notifications, moderate_threads, allow_poll, min_tags
+  #FROM xf_forum f
+  #INNER JOIN xf_node n
+  #  ON f.node_id = n.node_id
+  #''', 'data/raw/forums', mutate_forum)
   dump('''
-  SELECT a.attachment_id AS attachment_id,
-    a.data_id AS data_id,
-    a.content_type AS content_type,
-    a.content_id AS content_id,
-    a.attach_date AS attach_date,
-    a.unassociated AS unassociated,
-    a.view_count AS view_count,
-    d.user_id AS user_id,
-    d.filename AS filename,
-    d.file_size AS file_size,
-    d.file_hash AS file_hash,
-    d.file_path AS file_path,
-    d.width AS width,
-    d.height AS height,
-    d.thumbnail_width AS thumbnail_width,
-    d.thumbnail_height AS thumbnail_height,
-    d.attach_count
-  FROM xf_attachment a
-  INNER JOIN xf_attachment_data d
-    ON a.data_id = d.data_id
-  ''', 'data/raw/attachments', mutate_attachment)
-  dump('''
-  SELECT conversation_id, title, user_id, start_date, open_invite, conversation_open
-  FROM xf_conversation_master
-  ORDER BY start_date ASC
-  ''', 'data/raw/conversations', mutate_conversation)
-  dump('SELECT * FROM xf_user', 'data/raw/users', mutate_user)
-  dump('SELECT * FROM xf_user_field', 'data/raw/user_fields', mutate_user_field)
-  dump('SELECT * FROM xf_user_group', 'data/raw/user_groups', mutate_user_group)
+  SELECT thread_id, node_id AS forum_id, title, user_id, post_date, sticky,
+    discussion_state, discussion_open, discussion_type, prefix_id
+  FROM xf_thread
+  ''', 'data/raw/threads', mutate_thread)
+  #dump('SELECT * FROM xf_user', 'data/raw/users', mutate_user)
+  #dump('SELECT * FROM xf_user_field', 'data/raw/user_fields', mutate_user_field)
+  #dump('SELECT * FROM xf_user_group', 'data/raw/user_groups', mutate_user_group)
