@@ -305,37 +305,10 @@ def fetch_profile_comments(post_id, cursor):
 
   return comments
 
-def fetch_profile_posts(user_id, cursor):
-  query = '''
-  SELECT profile_post_id, user_id, post_date, message, ip_id, message_state
-  FROM xf_profile_post
-  WHERE profile_user_id = %s
-  ORDER BY post_date ASC
-  '''
-  cursor.execute(query, (user_id,))
-  res = cursor.fetchall()
-
-  posts = []
-  for post in res:
-    post_id = post['profile_post_id']
-    post_obj = {
-      "post_id": post_id,
-      "user_id": post['user_id'],
-      "post_date": post['post_date'],
-      "message": post['message'],
-      "ip_id": post['ip_id'],
-      "message_state": post['message_state'],
-      "comments": fetch_profile_comments(post_id, cursor)
-    }
-    posts.append(post_obj)
-
-  return posts
-
 def fetch_user_profile(user_id, cursor):
   query = "SELECT dob_day, dob_month, dob_year, signature, homepage, location, occupation, avatar_crop_x, avatar_crop_y, about FROM xf_user_profile WHERE user_id = %s LIMIT 1"
   cursor.execute(query, (user_id,))
   result = cursor.fetchone()
-  result['posts'] = fetch_profile_posts(user_id, cursor)
 
   if result is None:
     return None
@@ -415,47 +388,57 @@ def mutate_user_group(row, cursor):
   row['nts_server_group_ids'] = serialize_arr(row['nts_server_group_ids'])
   return group_id
 
+def mutate_profile_post(row, cursor):
+  post_id = row['profile_post_id']
+  row['comments'] = fetch_profile_comments(post_id, cursor)
+  return post_id
+
 if __name__ == "__main__":
-  #dump('''
-  #SELECT a.attachment_id AS attachment_id,
-  #  a.data_id AS data_id,
-  #  a.content_type AS content_type,
-  #  a.content_id AS content_id,
-  #  a.attach_date AS attach_date,
-  #  a.unassociated AS unassociated,
-  #  a.view_count AS view_count,
-  #  d.user_id AS user_id,
-  #  d.filename AS filename,
-  #  d.file_size AS file_size,
-  #  d.file_hash AS file_hash,
-  #  d.file_path AS file_path,
-  #  d.width AS width,
-  #  d.height AS height,
-  #  d.thumbnail_width AS thumbnail_width,
-  #  d.thumbnail_height AS thumbnail_height,
-  #  d.attach_count
-  #FROM xf_attachment a
-  #INNER JOIN xf_attachment_data d
-  #  ON a.data_id = d.data_id
-  #''', 'data/raw/attachments', mutate_attachment)
-  #dump('''
-  #SELECT conversation_id, title, user_id, start_date, open_invite, conversation_open
-  #FROM xf_conversation_master
-  #ORDER BY start_date ASC
-  #''', 'data/raw/conversations', mutate_conversation)
-  #dump('''
-  #SELECT f.node_id AS node_id, title, description, node_name, parent_node_id,
-  #  display_order, display_in_list, moderate_replies, allow_posting, default_prefix_id,
-  #  require_prefix, allowed_watch_notifications, moderate_threads, allow_poll, min_tags
-  #FROM xf_forum f
-  #INNER JOIN xf_node n
-  #  ON f.node_id = n.node_id
-  #''', 'data/raw/forums', mutate_forum)
-  #dump('''
-  #SELECT thread_id, node_id AS forum_id, title, user_id, post_date, sticky,
-  #  discussion_state, discussion_open, discussion_type, prefix_id
-  #FROM xf_thread
-  #''', 'data/raw/threads', mutate_thread)
+  dump('''
+  SELECT a.attachment_id AS attachment_id,
+    a.data_id AS data_id,
+    a.content_type AS content_type,
+    a.content_id AS content_id,
+    a.attach_date AS attach_date,
+    a.unassociated AS unassociated,
+    a.view_count AS view_count,
+    d.user_id AS user_id,
+    d.filename AS filename,
+    d.file_size AS file_size,
+    d.file_hash AS file_hash,
+    d.file_path AS file_path,
+    d.width AS width,
+    d.height AS height,
+    d.thumbnail_width AS thumbnail_width,
+    d.thumbnail_height AS thumbnail_height,
+    d.attach_count
+  FROM xf_attachment a
+  INNER JOIN xf_attachment_data d
+    ON a.data_id = d.data_id
+  ''', 'data/raw/attachments', mutate_attachment)
+  dump('''
+  SELECT conversation_id, title, user_id, start_date, open_invite, conversation_open
+  FROM xf_conversation_master
+  ORDER BY start_date ASC
+  ''', 'data/raw/conversations', mutate_conversation)
+  dump('''
+  SELECT f.node_id AS node_id, title, description, node_name, parent_node_id,
+    display_order, display_in_list, moderate_replies, allow_posting, default_prefix_id,
+    require_prefix, allowed_watch_notifications, moderate_threads, allow_poll, min_tags
+  FROM xf_forum f
+  INNER JOIN xf_node n
+    ON f.node_id = n.node_id
+  ''', 'data/raw/forums', mutate_forum)
+  dump('''
+  SELECT thread_id, node_id AS forum_id, title, user_id, post_date, sticky,
+    discussion_state, discussion_open, discussion_type, prefix_id
+  FROM xf_thread
+  ''', 'data/raw/threads', mutate_thread)
   dump('SELECT * FROM xf_user', 'data/raw/users', mutate_user)
-  #dump('SELECT * FROM xf_user_field', 'data/raw/user_fields', mutate_user_field)
-  #dump('SELECT * FROM xf_user_group', 'data/raw/user_groups', mutate_user_group)
+  dump('SELECT * FROM xf_user_field', 'data/raw/user_fields', mutate_user_field)
+  dump('SELECT * FROM xf_user_group', 'data/raw/user_groups', mutate_user_group)
+  dump('''
+  SELECT profile_post_id, profile_user_id, user_id, post_date, message, ip_id, message_state
+  FROM xf_profile_post
+  ORDER BY post_date ASC
+  ''', 'data/raw/profile_posts', mutate_profile_post)
