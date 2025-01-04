@@ -1,12 +1,15 @@
 from common import dump
 
+
 def mutate_attachment(row, cursor):
-  attachment_id = row['attachment_id']
-  row['content_type'] = row['content_type'].decode('utf-8')
-  return attachment_id
+    attachment_id = row["attachment_id"]
+    row["content_type"] = row["content_type"].decode("utf-8")
+    return attachment_id
+
 
 if __name__ == "__main__":
-  dump('''
+    dump(
+        """
   SELECT a.attachment_id AS attachment_id,
     a.data_id AS data_id,
     a.content_type AS content_type,
@@ -27,4 +30,7 @@ if __name__ == "__main__":
   FROM xf_attachment a
   INNER JOIN xf_attachment_data d
     ON a.data_id = d.data_id
-  ''', 'data/raw/attachments', mutate_attachment)
+  """,
+        "data/raw/attachments",
+        mutate_attachment,
+    )
