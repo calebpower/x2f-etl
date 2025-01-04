@@ -228,3 +228,5 @@ pyrightconfig.json
 ### Project-Specific ###
 data/
 db_config.json
+xenforo/*
+!xenforo/.keep
