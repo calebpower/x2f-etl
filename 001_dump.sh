@@ -5,6 +5,6 @@ if [ ! -f xenforo/index.php ]; then
   exit 1
 fi
 
-for file in $(ls scripts | grep dump_xenforo); do
-  python scripts/$file
+for script in $(ls scripts/dump_xenforo*.py); do
+  python $script
 done

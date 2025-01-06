@@ -150,22 +150,23 @@ def mutate_user(row, cursor):
     row["privacy"] = fetch_user_privacy(user_id, cursor)
     row["profile"] = fetch_user_profile(user_id, cursor)
     row["conversations"] = fetch_recipient_conversations(user_id, cursor)
-    row["password_hash"] = re.search(
+    password_hash_match = re.search(
         r"\$2[aby]?\$[0-9]{2}\$[A-Za-z0-9./]{53}", serialize_blob(row["password_hash"])
-    ).group(0)
+    )
+    row["password_hash"] = password_hash_match.group(0) if password_hash_match else None
     return user_id
 
 
 if __name__ == "__main__":
     dump(
         """
-  SELECT a.user_id AS user_id, username, email, gender, custom_title, language_id, timezone,
-    visible, user_group_id, secondary_group_ids, register_date, last_activity,
-    user_state, is_moderator, is_admin, is_banned, is_staff, data AS password_hash
-  FROM xf_user u
-  INNER JOIN xf_user_authenticate a
-    ON u.user_id = a.user_id
-  """,
+            SELECT a.user_id AS user_id, username, email, gender, custom_title, language_id, timezone,
+            visible, user_group_id, secondary_group_ids, register_date, last_activity,
+            user_state, is_moderator, is_admin, is_banned, is_staff, data AS password_hash
+            FROM xf_user u
+            INNER JOIN xf_user_authenticate a
+            ON u.user_id = a.user_id
+            """,
         "data/raw/users",
         mutate_user,
     )

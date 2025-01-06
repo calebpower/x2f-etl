@@ -41,7 +41,7 @@ def count_threads(in_dir, out_file):
 
 
 if __name__ == "__main__":
-    count_threads("data/raw/threads", f"data/transform/threads.agg")
+    count_threads("data/raw/threads", "data/transform/threads.agg")
 
     with dbm.open(f"data/transform/threads.agg", "r") as db:
         for key in db.keys():
