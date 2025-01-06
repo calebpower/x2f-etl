@@ -1,8 +1,9 @@
+import datetime
 import os
 import json
 import pymysql
 
-DB_CONFIG = {
+DEFAULT_DB_CONFIG = {
     "host": "localhost",
     "port": 3306,
     "user": "user",
@@ -11,19 +12,22 @@ DB_CONFIG = {
     "charset": "utf8mb4",
 }
 
+db_configs = {"flarum": None, "xenforo": None}
+
 
 def load_db_config(file_path):
     if not os.path.exists(file_path):
         print(f"{file_path} not found--making it now")
         with open(file_path, "w") as f:
-            json.dump(DB_CONFIG, f, indent=2)
-        return DB_CONFIG
+            json.dump(DEFAULT_DB_CONFIG, f, indent=2)
+        return DEFAULT_DB_CONFIG
 
     with open(file_path, "r") as f:
         return json.load(f)
 
 
-DB_CONFIG = load_db_config("db_config.json")
+for key in db_configs.keys():
+    db_configs[key] = load_db_config(f"db_{key}.json")
 
 
 def serialize_blob(blob):
@@ -43,10 +47,35 @@ def serialize_arr(data):
     return [int(x) if x.isdigit() else x for x in data.decode("utf-8").split(",")]
 
 
+def to_timestamp(unix_seconds):
+    return (
+        None
+        if unix_seconds is None
+        else datetime.datetime.fromtimestamp(unix_seconds).strftime("%Y-%m-%d %H:%M:%S")
+    )
+
+
+def db_op(config, op, params=None):
+    try:
+        con = pymysql.connect(**db_configs[config])
+        cursor = con.cursor(pymysql.cursors.DictCursor)
+        if op(cursor, params):
+            con.commit()
+
+    except Exception as e:
+        print(f"error: {e}")
+
+    finally:
+        if "cursor" in locals():
+            cursor.close()
+        if "con" in locals():
+            con.close()
+
+
 def dump(query, out_dir, row_ops):
     try:
         os.makedirs(out_dir, exist_ok=True)
-        con = pymysql.connect(**DB_CONFIG)
+        con = pymysql.connect(**db_configs["xenforo"])
         cursor = con.cursor(pymysql.cursors.DictCursor)
         cursor.execute(query)
         rows = cursor.fetchall()
@@ -59,6 +88,26 @@ def dump(query, out_dir, row_ops):
                 json.dump(row, file, indent=2, ensure_ascii=False)
 
             print(f"wrote {out_file}")
+
+    except Exception as e:
+        print(f"error: {e}")
+
+    finally:
+        if "cursor" in locals():
+            cursor.close()
+        if "con" in locals():
+            con.close()
+
+
+def get_offset(table, pri_key):
+    try:
+        con = pymysql.connect(**db_configs["flarum"])
+        cursor = con.cursor(pymysql.cursors.DictCursor)
+        query = f"SELECT {pri_key} FROM {table} ORDER BY {pri_key} DESC LIMIT 1"
+        cursor.execute(query)
+        res = cursor.fetchone()
+
+        return 0 if res is None else res["id"]
 
     except Exception as e:
         print(f"error: {e}")
