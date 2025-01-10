@@ -19,10 +19,10 @@ def fetch_posts(thread_id, cursor):
   SELECT post_id, user_id, post_date, message, ip_id, message_state, position,
     last_edit_date, last_edit_user_id, edit_count
   FROM xf_post
-  WHERE thread_id = %s
+  WHERE thread_id = %s AND user_id <> %s
   ORDER BY post_id ASC
   """
-    cursor.execute(query, (thread_id,))
+    cursor.execute(query, (thread_id, 0))
     res = cursor.fetchall()
 
     posts = []
@@ -48,13 +48,14 @@ def fetch_poll_votes(poll_id, poll_response_id, cursor):
     query = """
   SELECT user_id, vote_date
   FROM xf_poll_vote
-  WHERE poll_response_id = %s AND poll_id = %s
+  WHERE poll_response_id = %s AND poll_id = %s AND user_id <> %s
   """
     cursor.execute(
         query,
         (
             poll_response_id,
             poll_id,
+            0,
         ),
     )
     res = cursor.fetchall()
@@ -127,7 +128,8 @@ if __name__ == "__main__":
   SELECT thread_id, node_id AS forum_id, title, user_id, post_date, sticky,
     discussion_state, discussion_open, discussion_type, prefix_id
   FROM xf_thread
+  WHERE user_id <> 0 AND discussion_type <> "redirect"
   """,
         "data/raw/threads",
-        mutate_thread,
+        mutate_thread
     )
