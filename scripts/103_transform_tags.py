@@ -31,6 +31,7 @@ if __name__ == "__main__":
 
     forum_meta = { }
 
+    # note: if a forum has no threads, it won't have meta
     for thread_entry in os.listdir("data/raw/threads"):
         print(f"reading thread {thread_entry}")
         with open(f"data/raw/threads/{thread_entry}", "r", encoding="utf-8") as thread_file:
@@ -71,7 +72,7 @@ if __name__ == "__main__":
                 forum["post_count"] += comment_count
             
     
-    with dbm.open("data/transform/tags.map", "n") as db:
+    with dbm.open("data/transform/tags.agg", "n") as db:
         for forum_entry in os.listdir("data/raw/forums"):
             tag_id = os.path.splitext(forum_entry)[0]
             tag_title = resolve_compound_name(tag_id)
@@ -79,12 +80,23 @@ if __name__ == "__main__":
                 "title": tag_title[1],
                 "stub": generate_stub(tag_title[1])
             }
-            if tag_id in forum_meta:
-                tag = {**forum_meta[tag_id], **tag}
+            if int(tag_id) in forum_meta:
+                tag = {**forum_meta[int(tag_id)], **tag}
+            else:
+                print(f"warning! could not merge tag {tag_id}")
+                tag = {
+                    "created_at": None,
+                    "discussion_count": 0,
+                    "last_posted_at": None,
+                    "last_posted_discussion_id": None,
+                    "last_posted_user_id": None,
+                    "post_count": 0,
+                    **tag
+                }
 
             db[str(tag_id)] = json.dumps(tag)
 
-    with dbm.open(f"data/transform/tags.map", "r") as db:
+    with dbm.open(f"data/transform/tags.agg", "r") as db:
         for key in db.keys():
             key_decoded = key.decode("utf-8")
             value_decoded = db[key].decode("utf-8")
