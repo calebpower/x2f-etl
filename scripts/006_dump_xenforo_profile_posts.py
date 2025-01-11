@@ -8,7 +8,13 @@ def fetch_profile_comments(post_id, cursor):
   WHERE profile_post_id = %s AND user_id <> %s
   ORDER BY comment_date ASC
   """
-    cursor.execute(query, (post_id, 0,))
+    cursor.execute(
+        query,
+        (
+            post_id,
+            0,
+        ),
+    )
     res = cursor.fetchall()
 
     comments = []

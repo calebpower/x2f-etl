@@ -43,7 +43,7 @@ def insert_tags(cursor, _):
         "last_posted_user_id": None,
         "created_at": None,
         "updated_at": None,
-        "post_count": None
+        "post_count": None,
     }
 
     columns = ", ".join(tag_data.keys())
@@ -80,7 +80,7 @@ def insert_tags(cursor, _):
             cursor.execute(query, tuple(tag_data.values()))
 
     return True
-            
+
 
 if __name__ == "__main__":
     db_op("flarum", insert_tags)

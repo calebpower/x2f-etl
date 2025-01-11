@@ -41,7 +41,9 @@ def reindex(in_dir, out_file, offset_table=None, sub_entries=None):
                     parent_json = json.load(parent_file)
                     for sub_entry in sub_entries:
                         for sub_elem in parent_json[sub_entry["id"]]:
-                            sub_indexes[sub_entry["id"]]["entries"].append(sub_elem[sub_entry["key"]])
+                            sub_indexes[sub_entry["id"]]["entries"].append(
+                                sub_elem[sub_entry["key"]]
+                            )
 
     if sub_entries is not None:
         for sub_entry in sub_entries:
@@ -65,9 +67,9 @@ if __name__ == "__main__":
                     "id": "messages",
                     "key": "message_id",
                     "offset_table": None,
-                    "out_file": "data/transform/messages.map"
+                    "out_file": "data/transform/messages.map",
                 }
-            ]
+            ],
         ),
         ("forums", ("flarum_tags", "id"), None),
         (
@@ -78,10 +80,9 @@ if __name__ == "__main__":
                     "id": "comments",
                     "key": "comment_id",
                     "offset_table": ("flarum_user_comments", "id"),
-                    "out_file": "data/transform/profile_comments.map"
+                    "out_file": "data/transform/profile_comments.map",
                 }
-            ]
-            
+            ],
         ),
         (
             "threads",
@@ -98,6 +99,11 @@ if __name__ == "__main__":
         ("user_groups", ("flarum_groups", "id"), None),
         ("users", ("flarum_users", "id"), None),
     ]
-    #folder = folders[4]
+    # folder = folders[4]
     for folder in folders:
-        reindex(f"data/raw/{folder[0]}", f"data/transform/{folder[0]}.map", folder[1], folder[2])
+        reindex(
+            f"data/raw/{folder[0]}",
+            f"data/transform/{folder[0]}.map",
+            folder[1],
+            folder[2],
+        )

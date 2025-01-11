@@ -122,14 +122,27 @@ def mutate_thread(row, cursor):
     return thread_id
 
 
+def mutate_like(row, cursor):
+    return row["like_id"]
+
+
 if __name__ == "__main__":
     dump(
         """
-  SELECT thread_id, node_id AS forum_id, title, user_id, post_date, sticky,
-    discussion_state, discussion_open, discussion_type, prefix_id
-  FROM xf_thread
-  WHERE user_id <> 0 AND discussion_type <> "redirect"
-  """,
+    SELECT thread_id, node_id AS forum_id, title, user_id, post_date, sticky,
+      discussion_state, discussion_open, discussion_type, prefix_id
+    FROM xf_thread
+    WHERE user_id <> 0 AND discussion_type <> "redirect"
+        """,
         "data/raw/threads",
-        mutate_thread
+        mutate_thread,
+    )
+    dump(
+        """
+    SELECT like_id, content_id AS post_id, like_user_id AS user_id, like_date
+    FROM xf_liked_content
+    WHERE like_user_id <> 0 AND content_user_id <> 0
+        """,
+        "data/raw/likes",
+        mutate_like,
     )

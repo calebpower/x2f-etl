@@ -8,7 +8,13 @@ def fetch_conversation_messages(convo_id, cursor):
   WHERE conversation_id = %s AND user_id <> %s
   ORDER BY message_date ASC
   """
-    cursor.execute(query, (convo_id, 0,))
+    cursor.execute(
+        query,
+        (
+            convo_id,
+            0,
+        ),
+    )
     res = cursor.fetchall()
 
     messages = []
