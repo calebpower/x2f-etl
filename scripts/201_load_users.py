@@ -4,7 +4,7 @@ import os
 import random
 import string
 
-from common import db_op, to_timestamp
+from common import db_op, to_timestamp, build_query
 
 # id - from user map
 # username - from raw
@@ -42,9 +42,7 @@ def insert_users(cursor, _):
         "suspended_until": None,
     }
 
-    columns = ", ".join(user_data.keys())
-    placeholders = ", ".join(["%s"] * len(user_data))
-    query = f"INSERT INTO flarum_users ({columns}) VALUES ({placeholders})"
+    query = build_query(user_data, "flarum_users")
 
     with dbm.open("data/transform/users.map") as user_db:
         for user_id in sorted(user_db.keys(), key=lambda x: int(x.decode("utf-8"))):

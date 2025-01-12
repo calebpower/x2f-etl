@@ -1,7 +1,10 @@
 import datetime
-import os
+import dbm
 import json
+import os
 import pymysql
+import traceback
+
 
 DEFAULT_DB_CONFIG = {
     "host": "localhost",
@@ -64,12 +67,18 @@ def db_op(config, op, params=None):
 
     except Exception as e:
         print(f"error: {e}")
+        traceback.print_exc()
 
     finally:
         if "cursor" in locals():
             cursor.close()
         if "con" in locals():
             con.close()
+
+
+def get_mapped_id(file, orig_id):
+    with dbm.open(f"data/transform/{file}") as dbm_file:
+        return dbm_file[str(orig_id)].decode("utf-8")
 
 
 def dump(query, out_dir, row_ops):
@@ -117,3 +126,8 @@ def get_offset(table, pri_key):
             cursor.close()
         if "con" in locals():
             con.close()
+
+def build_query(dict_obj, table):
+    columns = ", ".join(dict_obj.keys())
+    placeholders = ", ".join(["%s"] * len(dict_obj))
+    return f"INSERT INTO {table} ({columns}) VALUES ({placeholders})"

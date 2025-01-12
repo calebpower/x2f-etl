@@ -4,7 +4,7 @@ import os
 import random
 import string
 
-from common import db_op, to_timestamp
+from common import db_op, to_timestamp, build_query
 
 # id - from forum map
 # name - from tags transform
@@ -46,9 +46,7 @@ def insert_tags(cursor, _):
         "post_count": None,
     }
 
-    columns = ", ".join(tag_data.keys())
-    placeholders = ", ".join(["%s"] * len(tag_data))
-    query = f"INSERT INTO flarum_tags ({columns}) VALUES ({placeholders})"
+    query = build_query(tag_data, "flarum_tags")
 
     with dbm.open("data/transform/tags.agg") as tag_db:
         priority = 1
