@@ -13,7 +13,7 @@ def get_user_by_id(original_id):
                 f"data/raw/users/{original_id}.json", "r", encoding="utf-8"
             ) as user_file:
                 user_json = json.load(user_file)
-                return (user_db[original_id], user_json["username"])
+                return (user_db[original_id].decode("utf-8"), user_json["username"])
 
     except FileNotFoundError as e:
         return None
@@ -23,7 +23,7 @@ def get_user_by_name(username):
     with dbm.open("data/transform/users.rev") as user_db:
         if username not in user_db:
             return None
-        return (user_db[username], username)
+        return (user_db[username].decode("utf-8"), username)
 
 
 def transform_quote(match):
@@ -110,24 +110,65 @@ def convert_embeds(message, tag, fn):
         message = modified
 
 
+def slugify(title):
+    return re.sub(r"\s+", "_", re.sub(r"[^\w\s]", "", title))[:255].rstrip("_").lower()
+
+
 if __name__ == "__main__":
     os.makedirs("data/transform/posts", exist_ok=True)
 
-    for thread_entry in os.listdir("data/raw/threads"):
-        print(f"reading thread {thread_entry}")
-        with open(
-            f"data/raw/threads/{thread_entry}", "r", encoding="utf-8"
-        ) as thread_file:
-            thread_json = json.load(thread_file)
-            for post in thread_json["posts"]:
-                post_id = str(post["post_id"])
-                post_message = post["message"]
+    with dbm.open("data/transform/discussions.agg", "n") as discussions_db:
+        with dbm.open("data/transform/posts.agg", "n") as posts_db:
 
-                post_message = convert_embeds(post_message, "QUOTE", transform_quote)
-                post_message = convert_embeds(post_message, "DOUBLEPOST", "")
-                post_message = convert_embeds(post_message, "USER", transform_mention)
+            for thread_entry in os.listdir("data/raw/threads"):
+                print(f"reading thread {thread_entry}")
+                with open(
+                    f"data/raw/threads/{thread_entry}", "r", encoding="utf-8"
+                ) as thread_file:
+                    thread_json = json.load(thread_file)
+                    thread_users = set()
 
-                with open(f"data/transform/posts/{post_id}.json", "w") as file:
-                    file.write(post_message)
+                    for idx, post in enumerate(thread_json["posts"]):
+                        post_id = str(post["post_id"])
+                        post_message = post["message"]
+                        thread_users.add(post["user_id"])
 
-                print(f"transformed post {post_id}")
+                        post_message = convert_embeds(post_message, "QUOTE", transform_quote)
+                        post_message = convert_embeds(post_message, "DOUBLEPOST", "")
+                        post_message = convert_embeds(post_message, "USER", transform_mention)
+
+                        post_agg = {
+                            "number": idx + 1,
+                            "mentioned_users": list({
+                                match
+                                for match in re.findall('<USERMENTION.*?id="(\d+?)">', post_message)
+                            }),
+                            "discussion": os.path.splitext(thread_entry)[0]
+                        }
+
+                        try:
+                            with open(f"data/raw/ips/{post['ip_id']}.json") as ip_file:
+                                ip_json = json.load(ip_file)
+                                post_agg["ip_addr"] = ip_json["ip"]
+
+                        except FileNotFoundError as _:
+                            post_agg["ip_addr"] = None
+                        
+                        with open(f"data/transform/posts/{post_id}.txt", "w") as text_file:
+                            text_file.write(post_message)
+                                
+                        posts_db[post_id] = json.dumps(post_agg)
+
+                        print(f"transformed post {post_id}")
+
+                    thread_agg = {
+                        "comment_count": len(thread_json["posts"]),
+                        "participant_count": len(thread_users),
+                        "first_post_id": thread_json["posts"][0]["post_id"],
+                        "last_posted_at": thread_json["posts"][-1]["post_date"],
+                        "last_posted_user_id": thread_json["posts"][-1]["user_id"],
+                        "last_post_id": thread_json["posts"][-1]["post_id"],
+                        "slug": slugify(thread_json["title"])
+                    }
+
+                    discussions_db[str(thread_json["thread_id"])] = json.dumps(thread_agg)
