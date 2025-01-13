@@ -133,18 +133,33 @@ if __name__ == "__main__":
                         post_message = post["message"]
                         thread_users.add(post["user_id"])
 
-                        post_message = convert_embeds(post_message, "QUOTE", transform_quote)
+                        post_message = convert_embeds(
+                            post_message, "QUOTE", transform_quote
+                        )
                         post_message = convert_embeds(post_message, "DOUBLEPOST", "")
-                        post_message = convert_embeds(post_message, "USER", transform_mention)
+                        post_message = convert_embeds(
+                            post_message, "USER", transform_mention
+                        )
 
                         post_agg = {
                             "number": idx + 1,
-                            "mentioned_users": list({
-                                match
-                                for match in re.findall('<USERMENTION.*?id="(\d+?)">', post_message)
-                            }),
-                            "discussion": os.path.splitext(thread_entry)[0]
+                            "mentioned_users": list(
+                                {
+                                    match
+                                    for match in re.findall(
+                                        '<USERMENTION.*?id="(\d+?)">', post_message
+                                    )
+                                }
+                            ),
+                            "discussion": os.path.splitext(thread_entry)[0],
                         }
+
+                        wrapper = (
+                            "r"
+                            if re.search(r"<[^>]+>|\[\/?[a-zA-Z][^\]]*\]", post_message)
+                            else "t"
+                        )
+                        post_message = f"<{wrapper}>{post_message}</{wrapper}>"
 
                         try:
                             with open(f"data/raw/ips/{post['ip_id']}.json") as ip_file:
@@ -153,10 +168,12 @@ if __name__ == "__main__":
 
                         except FileNotFoundError as _:
                             post_agg["ip_addr"] = None
-                        
-                        with open(f"data/transform/posts/{post_id}.txt", "w") as text_file:
+
+                        with open(
+                            f"data/transform/posts/{post_id}.txt", "w"
+                        ) as text_file:
                             text_file.write(post_message)
-                                
+
                         posts_db[post_id] = json.dumps(post_agg)
 
                         print(f"transformed post {post_id}")
@@ -168,7 +185,9 @@ if __name__ == "__main__":
                         "last_posted_at": thread_json["posts"][-1]["post_date"],
                         "last_posted_user_id": thread_json["posts"][-1]["user_id"],
                         "last_post_id": thread_json["posts"][-1]["post_id"],
-                        "slug": slugify(thread_json["title"])
+                        "slug": slugify(thread_json["title"]),
                     }
 
-                    discussions_db[str(thread_json["thread_id"])] = json.dumps(thread_agg)
+                    discussions_db[str(thread_json["thread_id"])] = json.dumps(
+                        thread_agg
+                    )

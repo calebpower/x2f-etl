@@ -5,6 +5,6 @@ if [ ! -f xenforo/index.php ]; then
   exit 1
 fi
 
-for script in $(ls scripts/00*.py); do
+for script in $(ls scripts/1*.py); do
   python $script
 done

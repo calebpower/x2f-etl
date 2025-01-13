@@ -127,6 +127,7 @@ def get_offset(table, pri_key):
         if "con" in locals():
             con.close()
 
+
 def build_query(dict_obj, table):
     columns = ", ".join(dict_obj.keys())
     placeholders = ", ".join(["%s"] * len(dict_obj))
