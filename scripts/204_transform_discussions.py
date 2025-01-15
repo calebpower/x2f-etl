@@ -26,7 +26,7 @@ def get_user_by_name(username):
         return get_user_by_id(user_db[username])
 
 
-def transform_quotes(match):
+def transform_quote(match):
     substring = match.group()
     print(f"transform quote: {substring}")
     
@@ -65,7 +65,7 @@ def transform_quotes(match):
     return string_builder.getvalue()
 
 
-def transform_mentions(match):
+def transform_mention(match):
     substring = match.group()
     print(f"transform mention: {substring}")
     
@@ -122,7 +122,7 @@ def transform_media(match):
     return f"<URL url=\"{media_url}\"><s>[</s>{media_url}<e>]({media_url})</e></URL>"
 
 
-def transform_images(match):
+def transform_image(match):
     substring = match.group()
     print(f"transform image: {substring}")
 
@@ -133,7 +133,7 @@ def transform_images(match):
     return f"<IMG alt=\"image\" src=\"{image_url}\"><s>![</s>image<e>]({image_url})</e></IMG>"
 
 
-def transform_urls(match):
+def transform_url(match):
     substring = match.group()
     print(f"transform url: {substring}")
 
@@ -149,12 +149,30 @@ def transform_urls(match):
         old_forum = old_forum_search.group(1)
         try:
             with dbm.open("data/transform/threads.map", "r") as threads_map:
-                link_url = f"/d/{threads_map[old_forum]}"
+                thread_id = threads_map[old_forum].decode("utf-8")
+                link_url = f"/d/{thread_id}"
+                print(f"mapped link to thread {thread_id}")
 
         except KeyError as _:
             print(f"failed to relink to old thread {old_forum}")
 
     return f"<URL url=\"{link_url}\"><s>[</s>{link_display}<e>]({link_url})</e></URL>"
+
+
+def transform_list(match):
+    substring = match.group()
+    print(f"transform list: {substring}")
+
+    res = []
+
+    for submatch in re.finditer(
+        r"(?<=\[\*\])\s*(.*?)\s*(?=\[(\*|\/LIST))",
+        substring,
+        flags=re.IGNORECASE | re.DOTALL    
+    ):
+        res.append(f"<LI><s>- </s>{submatch.group(1).strip()}</LI>")
+
+    return f'<LIST>{"".join(res)}</LIST>'
 
 
 def convert_embeds(message, tag, fn):
@@ -178,7 +196,7 @@ def wrap_code(match):
     print(f"transform {code} code: {substring}")
     
     front_tag_search = re.search(
-        r"\[{}=(.*?)\]".format(code),
+        r"\[({}=.*?)\]".format(code),
         substring,
         re.IGNORECASE)
     front_tag = front_tag_search.group(1) if front_tag_search else f"[{code}]"
@@ -218,11 +236,12 @@ if __name__ == "__main__":
                         
                         conversions = {
                             "DOUBLEPOST": "",
-                            "QUOTE": transform_quotes,
-                            "USER": transform_mentions,
-                            "URL": transform_urls,
+                            "QUOTE": transform_quote,
+                            "USER": transform_mention,
+                            "URL": transform_url,
                             "MEDIA": transform_media,
-                            "IMG": transform_images
+                            "IMG": transform_image,
+                            "LIST": transform_list
                         }
 
                         for tag, op in conversions.items():
@@ -264,7 +283,7 @@ if __name__ == "__main__":
 
                         wrapper = (
                             "r"
-                            if re.search(r"<[^>]+>|\[\/?[a-zA-Z][^\]]*\]", post_message)
+                            if re.search(r"<[^>]+>|\[\/?[a-zA-Z][^\]]*\|:[^\s]+:", post_message)
                             else "t"
                         )
                         post_message = f"<{wrapper}>{post_message}</{wrapper}>"
