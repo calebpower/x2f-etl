@@ -23,11 +23,13 @@ def get_user_by_name(username):
     with dbm.open("data/transform/users.rev") as user_db:
         if username not in user_db:
             return None
-        return (user_db[username].decode("utf-8"), username)
+        return get_user_by_id(user_db[username])
 
 
-def transform_quote(match):
+def transform_quotes(match):
     substring = match.group()
+    print(f"transform quote: {substring}")
+    
     message = re.search(
         r"\[QUOTE.*?\](.*)\[\/QUOTE\]", substring, re.IGNORECASE | re.DOTALL
     ).group(1)
@@ -63,9 +65,10 @@ def transform_quote(match):
     return string_builder.getvalue()
 
 
-def transform_mention(match):
+def transform_mentions(match):
     substring = match.group()
-    print(substring)
+    print(f"transform mention: {substring}")
+    
     raw_username = re.search(
         r"\[USER.*?\](.*)\[\/USER\]", substring, re.IGNORECASE | re.DOTALL
     ).group(1)
@@ -94,6 +97,66 @@ def transform_mention(match):
     )
 
 
+def transform_media(match):
+    substring = match.group()
+    print(f"transform media: {substring}")
+
+    media_types = {
+        "dailymotion": "https://www.dailymotion.com/video/",
+        "facebook": "https://www.facebook.com/video.php?v=",
+        "googledocument": "https://docs.google.com/document/pub?id=",
+        "vimeo": "https://vimeo.com/",
+        "youtube": "https://youtu.be/"
+    }
+    
+    media_type = "youtube"
+    media_type_search = re.search(r"\[MEDIA=(.+?)\]", substring, re.IGNORECASE)
+    if media_type_search:
+        media_type = media_type_search.group(1)
+
+    media_slug = re.search(
+        r"\[MEDIA.*?\](.*?)\[\/MEDIA\]", substring, re.IGNORECASE | re.DOTALL
+    ).group(1).strip()
+
+    media_url = f"{media_types[media_type]}{media_slug}"
+    return f"<URL url=\"{media_url}\"><s>[</s>{media_url}<e>]({media_url})</e></URL>"
+
+
+def transform_images(match):
+    substring = match.group()
+    print(f"transform image: {substring}")
+
+    image_url = re.search(
+        r"\[IMG.*?\](.*?)\[\/IMG\]", substring, re.IGNORECASE | re.DOTALL
+    ).group(1).strip()
+
+    return f"<IMG alt=\"image\" src=\"{image_url}\"><s>![</s>image<e>]({image_url})</e></IMG>"
+
+
+def transform_urls(match):
+    substring = match.group()
+    print(f"transform url: {substring}")
+
+    link_display = re.search(r"\[URL.*?\](.*?)\[\/URL\]", substring, re.IGNORECASE | re.DOTALL).group(1)
+    link_url = link_display
+    link_attr = re.search(r"\[URL=(.+?)\]", substring, re.IGNORECASE)
+    if link_attr:
+        link_url = link_attr.group(1)
+    link_url = link_url.strip('\'"')
+
+    old_forum_search = re.search(r"forum[s]?\.meepcraft\.com\/threads\/[^\.]*\.([^\/]*)\/?", link_url)
+    if old_forum_search:
+        old_forum = old_forum_search.group(1)
+        try:
+            with dbm.open("data/transform/threads.map", "r") as threads_map:
+                link_url = f"/d/{threads_map[old_forum]}"
+
+        except KeyError as _:
+            print(f"failed to relink to old thread {old_forum}")
+
+    return f"<URL url=\"{link_url}\"><s>[</s>{link_display}<e>]({link_url})</e></URL>"
+
+
 def convert_embeds(message, tag, fn):
     tag_template = r"\[{}(?!.*\[{}.*?\]).*?\](?!.*\[{}.*?\]).*?\[\/{}\]"
 
@@ -106,8 +169,26 @@ def convert_embeds(message, tag, fn):
         )
         if modified == message:
             return modified
-            break
         message = modified
+
+        
+def wrap_code(match):
+    substring = match.group()
+    code = re.search(r"\[([^=\/\]]+).*?\]", substring, re.IGNORECASE).group(1)
+    print(f"transform {code} code: {substring}")
+    
+    front_tag_search = re.search(
+        r"\[{}=(.*?)\]".format(code),
+        substring,
+        re.IGNORECASE)
+    front_tag = front_tag_search.group(1) if front_tag_search else f"[{code}]"
+    end_tag = f"[/{code}]"
+    inner_content = re.search(
+        r"\[{}.*?\](.*?)\[\/{}\]".format(code, code),
+        substring,
+        re.IGNORECASE | re.DOTALL).group(1)
+    
+    return f"<{front_tag.strip('[]')}><s>{front_tag}</s>{inner_content}<e>{end_tag}</e><{end_tag.strip('[]')}>"
 
 
 def slugify(title):
@@ -133,13 +214,21 @@ if __name__ == "__main__":
                         post_message = post["message"]
                         thread_users.add(post["user_id"])
 
-                        post_message = convert_embeds(
-                            post_message, "QUOTE", transform_quote
-                        )
-                        post_message = convert_embeds(post_message, "DOUBLEPOST", "")
-                        post_message = convert_embeds(
-                            post_message, "USER", transform_mention
-                        )
+                        # tag conversions
+                        
+                        conversions = {
+                            "DOUBLEPOST": "",
+                            "QUOTE": transform_quotes,
+                            "USER": transform_mentions,
+                            "URL": transform_urls,
+                            "MEDIA": transform_media,
+                            "IMG": transform_images
+                        }
+
+                        for tag, op in conversions.items():
+                            post_message = convert_embeds(post_message, tag, op)
+
+                        # count user mentions
 
                         post_agg = {
                             "number": idx + 1,
@@ -153,6 +242,25 @@ if __name__ == "__main__":
                             ),
                             "discussion": os.path.splitext(thread_entry)[0],
                         }
+
+                        # convert the other BB codes
+
+                        codes = ["B", "I", "U", "S", "COLOR", "SIZE", "LEFT", "CENTER", "RIGHT"]
+                        for code in codes:
+                            post_message = re.sub(
+                                r"(?<!<s>)\[{}(=.*?)?\].*?\[\/{}\](?!<\/e>)".format(code, code),
+                                wrap_code,
+                                post_message,
+                                flags=re.IGNORECASE | re.DOTALL
+                            )
+
+                        # wrap paragraphs, and add explicit breaks where necessary
+
+                        post_parts = re.split(r'\n{2,}', post_message.strip())
+                        post_paragraphs = ["<p>" + part.strip().replace('\n', '<br/>') + "</p>" for part in post_parts]
+                        post_message = "".join(post_paragraphs)
+
+                        # final wrapper - <t> for static templating and <r> for dynamic templating
 
                         wrapper = (
                             "r"
