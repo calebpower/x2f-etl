@@ -40,11 +40,24 @@ def count_threads(in_dir, out_file):
             db[str(user_id)] = json.dumps(entry)
 
 
+def map_usernames(in_dir, out_file):
+    os.makedirs(os.path.dirname(out_file), exist_ok=True)
+
+    with dbm.open(out_file, "n") as db:
+        for user_entry in os.listdir(in_dir):
+            print(f"reading {user_entry}")
+            with open(f"{in_dir}/{user_entry}", "r", encoding="utf-8") as user_file:
+                user_json = json.load(user_file)
+                db[user_json["username"]] = str(user_json["user_id"])
+
+
 if __name__ == "__main__":
     count_threads("data/raw/threads", "data/transform/threads.agg")
+    map_usernames("data/raw/users", "data/transform/users.rev")
 
-    with dbm.open(f"data/transform/threads.agg", "r") as db:
-        for key in db.keys():
-            key_decoded = key.decode("utf-8")
-            value_decoded = db[key].decode("utf-8")
-            print(f"{key_decoded} -> {value_decoded}")
+    for db_file in ["data/transform/threads.agg", "data/transform/users.rev"]:
+        with dbm.open(f"{db_file}", "r") as db:
+            for key in db.keys():
+                key_decoded = key.decode("utf-8")
+                value_decoded = db[key].decode("utf-8")
+                print(f"{key_decoded} -> {value_decoded}")

@@ -5,9 +5,16 @@ def fetch_conversation_messages(convo_id, cursor):
     query = """
   SELECT message_id, message_date, user_id, message, ip_id
   FROM xf_conversation_message
-  WHERE conversation_id = %s ORDER BY message_date ASC
+  WHERE conversation_id = %s AND user_id <> %s
+  ORDER BY message_date ASC
   """
-    cursor.execute(query, (convo_id,))
+    cursor.execute(
+        query,
+        (
+            convo_id,
+            0,
+        ),
+    )
     res = cursor.fetchall()
 
     messages = []

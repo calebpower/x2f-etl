@@ -5,10 +5,16 @@ def fetch_profile_comments(post_id, cursor):
     query = """
   SELECT profile_post_comment_id, user_id, comment_date, message, ip_id, message_state
   FROM xf_profile_post_comment
-  WHERE profile_post_id = %s
+  WHERE profile_post_id = %s AND user_id <> %s
   ORDER BY comment_date ASC
   """
-    cursor.execute(query, (post_id,))
+    cursor.execute(
+        query,
+        (
+            post_id,
+            0,
+        ),
+    )
     res = cursor.fetchall()
 
     comments = []

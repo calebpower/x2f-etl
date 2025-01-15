@@ -19,10 +19,10 @@ def fetch_posts(thread_id, cursor):
   SELECT post_id, user_id, post_date, message, ip_id, message_state, position,
     last_edit_date, last_edit_user_id, edit_count
   FROM xf_post
-  WHERE thread_id = %s
+  WHERE thread_id = %s AND user_id <> %s
   ORDER BY post_id ASC
   """
-    cursor.execute(query, (thread_id,))
+    cursor.execute(query, (thread_id, 0))
     res = cursor.fetchall()
 
     posts = []
@@ -48,13 +48,14 @@ def fetch_poll_votes(poll_id, poll_response_id, cursor):
     query = """
   SELECT user_id, vote_date
   FROM xf_poll_vote
-  WHERE poll_response_id = %s AND poll_id = %s
+  WHERE poll_response_id = %s AND poll_id = %s AND user_id <> %s
   """
     cursor.execute(
         query,
         (
             poll_response_id,
             poll_id,
+            0,
         ),
     )
     res = cursor.fetchall()
@@ -121,13 +122,27 @@ def mutate_thread(row, cursor):
     return thread_id
 
 
+def mutate_like(row, cursor):
+    return row["like_id"]
+
+
 if __name__ == "__main__":
     dump(
         """
-  SELECT thread_id, node_id AS forum_id, title, user_id, post_date, sticky,
-    discussion_state, discussion_open, discussion_type, prefix_id
-  FROM xf_thread
-  """,
+    SELECT thread_id, node_id AS forum_id, title, user_id, post_date, sticky,
+      discussion_state, discussion_open, discussion_type, prefix_id
+    FROM xf_thread
+    WHERE user_id <> 0 AND discussion_type <> "redirect"
+        """,
         "data/raw/threads",
         mutate_thread,
+    )
+    dump(
+        """
+    SELECT like_id, content_id AS post_id, like_user_id AS user_id, like_date
+    FROM xf_liked_content
+    WHERE like_user_id <> 0 AND content_user_id <> 0
+        """,
+        "data/raw/likes",
+        mutate_like,
     )
