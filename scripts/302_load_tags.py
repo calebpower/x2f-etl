@@ -1,8 +1,5 @@
 import dbm
 import json
-import os
-import random
-import string
 
 from common import db_op, to_timestamp, build_query
 

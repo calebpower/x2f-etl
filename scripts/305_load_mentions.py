@@ -1,12 +1,13 @@
 import dbm
 import json
 
-from common import db_op, to_timestamp, get_mapped_id, build_query
+from common import db_op
 
 # -- flarum_post_mentions_user --
 # post_id - pull from posts agg (pull from post map)
 # user_id - pull from posts agg (already mapped)
 # timestamp - maybe do a direct db call here
+
 
 def insert_mentions(cursor, _):
     mention_data = {
@@ -32,7 +33,9 @@ def insert_mentions(cursor, _):
 
                 for mentioned_user in mentioned_users:
                     print(f"user {mentioned_user} mentioned in post {post_id_decoded}")
-                    cursor.execute(query, (post_id_decoded, mentioned_user, post_id_decoded))
+                    cursor.execute(
+                        query, (post_id_decoded, mentioned_user, post_id_decoded)
+                    )
 
     return True
 
