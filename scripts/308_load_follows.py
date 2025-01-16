@@ -29,7 +29,9 @@ def insert_follow(cursor, _):
             follow_data["user_id"] = get_mapped_id("users.map", user_json["user_id"])
 
             for follow_json in user_json["follows"]:
-                follow_data["followed_user_id"] = get_mapped_id("users.map", follow_json["follow_user"])
+                follow_data["followed_user_id"] = get_mapped_id(
+                    "users.map", follow_json["follow_user"]
+                )
                 follow_data["created_at"] = to_timestamp(follow_json["follow_date"])
                 follow_data["updated_at"] = follow_data["created_at"]
 
