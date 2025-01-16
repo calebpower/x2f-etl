@@ -51,7 +51,7 @@ def insert_polls(cursor, _):
         "updated_at": None,
         "vote_count": None,
         "max_votes": None,
-        "settings": None
+        "settings": None,
     }
 
     settings_data = {
@@ -59,7 +59,7 @@ def insert_polls(cursor, _):
         "allow_multiple_votes": False,
         "max_votes": 0,
         "hide_votes": False,
-        "allow_change_vote": True
+        "allow_change_vote": True,
     }
 
     option_data = {
@@ -153,8 +153,10 @@ def insert_polls(cursor, _):
                             vote_data["user_id"] = get_mapped_id(
                                 "users.map", vote_json["user_id"]
                             )
-                            vote_data["created_at"] = to_timestamp(vote_json["vote_date"])
-                            
+                            vote_data["created_at"] = to_timestamp(
+                                vote_json["vote_date"]
+                            )
+
                             print(vote_data)
                             cursor.execute(ins_vote_stmt, tuple(vote_data.values()))
 
@@ -164,26 +166,30 @@ def insert_polls(cursor, _):
                     if missing_vote_count_res:
                         missing_vote_count_poll += missing_vote_count_res
 
-                        print(f'remove {missing_vote_count_res} vote(s) from option {vote_data["option_id"]}')
-                        
+                        print(
+                            f'remove {missing_vote_count_res} vote(s) from option {vote_data["option_id"]}'
+                        )
+
                         cursor.execute(
                             "UPDATE flarum_poll_options SET vote_count = %s WHERE id = %s",
                             (
                                 option_data["vote_count"] - missing_vote_count_res,
                                 vote_data["option_id"],
-                            )
+                            ),
                         )
 
                 if missing_vote_count_poll:
 
-                    print(f'remove {missing_vote_count_poll} vote(s) from poll {option_data["poll_id"]}')
+                    print(
+                        f'remove {missing_vote_count_poll} vote(s) from poll {option_data["poll_id"]}'
+                    )
 
                     cursor.execute(
                         "UPDATE flarum_polls SET vote_count = %s WHERE id = %s",
                         (
                             poll_data["vote_count"] - missing_vote_count_poll,
                             option_data["poll_id"],
-                        )
+                        ),
                     )
 
     return True
